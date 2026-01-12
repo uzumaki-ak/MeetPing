@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    strings.xml
+
+    PURPOSE:
+    App string resources
+-->
+<resources>
+
+    <string name="app_name">Meeting Listener</string>
+
+    <string name="start_meeting">Start Meeting</string>
+    <string name="stop_meeting">Stop Meeting</string>
+    <string name="ask_question">Ask Question</string>
+    <string name="no_active_meeting">No Active Meeting</string>
+    <string name="meeting_active">Meeting Active - Listening...</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="api_keys_section">LLM API Keys</string>
+    <string name="claude_api_key">Claude API Key</string>
+    <string name="gemini_api_key">Gemini API Key</string>
+    <string name="euron_api_key">Euron API Key</string>
+    <string name="save_settings">Save Settings</string>
+    <string name="clear_all_data">Clear All Data</string>
+
+    <string name="permission_audio_rationale">Microphone permission is required to listen to meetings</string>
+    <string name="permission_notification_rationale">Notification permission is required for name mention alerts</string>
+    <string name="permission_overlay_rationale">Overlay permission allows the floating bubble feature</string>
+
+    <string name="notification_listening">Listening to meeting...</string>
+    <string name="notification_name_mentioned">Your name was mentioned!</string>
+
+    <string name="error_no_api_key">Please add an API key in Settings</string>
+    <string name="error_speech_recognition">Speech recognition error</string>
+    <string name="error_llm_failed">Failed to get answer from LLM</string>
+
+</resources>
