@@ -14,7 +14,21 @@ import org.vosk.android.SpeechService
 import java.io.File
 import java.io.FileOutputStream
 
-class VoskSpeechRecognizer(private val context: Context) {
+/**
+ * VoskSpeechRecognizer.kt (MULTI-LANGUAGE VERSION)
+ *
+ * PURPOSE:
+ * Supports both English and Hindi speech recognition
+ * Automatically loads correct model based on user preference
+ *
+ * SUPPORTED LANGUAGES:
+ * - English: model/
+ * - Hindi: model-hi/
+ */
+class VoskSpeechRecognizer(
+    private val context: Context,
+    private val language: Language = Language.ENGLISH
+) {
 
     private val TAG = "VoskRecognizer"
 
@@ -32,33 +46,44 @@ class VoskSpeechRecognizer(private val context: Context) {
     private var initialized = false
     private var listening = false
 
-    /* ---------------- INIT ---------------- */
+    /**
+     * Language enum
+     */
+    enum class Language(val modelFolder: String, val displayName: String) {
+        ENGLISH("model", "English"),
+        HINDI("model-hi", "Hindi (हिंदी)")
+    }
 
+    /**
+     * Initialize with selected language
+     */
     fun initialize() {
         scope.launch {
             try {
                 statusChannel.send(RecognitionStatus.Initializing)
+                Log.d(TAG, "Initializing ${language.displayName} model...")
 
-                val modelDir = copyAssetModelIfNeeded()
+                val modelDir = copyAssetModelIfNeeded(language.modelFolder)
                 model = Model(modelDir.absolutePath)
 
                 initialized = true
                 statusChannel.send(RecognitionStatus.Ready)
 
-                Log.d(TAG, "Vosk model loaded: ${modelDir.absolutePath}")
+                Log.d(TAG, "${language.displayName} model loaded successfully")
             } catch (e: Exception) {
-                Log.e(TAG, "Init failed", e)
+                Log.e(TAG, "Init failed for ${language.displayName}", e)
                 statusChannel.send(
-                    RecognitionStatus.Error(e.message ?: "Model init failed")
+                    RecognitionStatus.Error("Failed to load ${language.displayName} model: ${e.message}")
                 )
             }
         }
     }
 
-    /* ---------------- START ---------------- */
-
     fun startListening() {
-        if (!initialized || listening) return
+        if (!initialized || listening) {
+            Log.w(TAG, "Cannot start: initialized=$initialized, listening=$listening")
+            return
+        }
 
         try {
             val recognizer = Recognizer(model!!, 16000f)
@@ -66,19 +91,18 @@ class VoskSpeechRecognizer(private val context: Context) {
             speechService!!.startListening(listener)
 
             listening = true
-            scope.launch { statusChannel.send(RecognitionStatus.Listening) }
+            scope.launch {
+                statusChannel.send(RecognitionStatus.Listening)
+                Log.d(TAG, "Started listening in ${language.displayName}")
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Start failed", e)
             scope.launch {
-                statusChannel.send(
-                    RecognitionStatus.Error(e.message ?: "Start failed")
-                )
+                statusChannel.send(RecognitionStatus.Error(e.message ?: "Start failed"))
             }
         }
     }
-
-    /* ---------------- STOP ---------------- */
 
     fun stopListening() {
         if (!listening) return
@@ -90,6 +114,7 @@ class VoskSpeechRecognizer(private val context: Context) {
             listening = false
 
             scope.launch { statusChannel.send(RecognitionStatus.Stopped) }
+            Log.d(TAG, "Stopped listening")
 
         } catch (e: Exception) {
             Log.e(TAG, "Stop failed", e)
@@ -100,19 +125,31 @@ class VoskSpeechRecognizer(private val context: Context) {
         stopListening()
         model?.close()
         model = null
+        initialized = false
         scope.cancel()
+        Log.d(TAG, "Destroyed")
     }
 
-    /* ---------------- LISTENER ---------------- */
-
+    /**
+     * Recognition listener
+     */
     private val listener = object : RecognitionListener {
 
-        override fun onPartialResult(hypothesis: String?) {}
+        override fun onPartialResult(hypothesis: String?) {
+            // Partial results - can be used for real-time display
+        }
 
         override fun onResult(hypothesis: String?) {
             hypothesis ?: return
-            val text = JSONObject(hypothesis).optString("text")
-            if (text.isNotBlank()) transcriptChannel.trySend(text)
+            try {
+                val text = JSONObject(hypothesis).optString("text", "")
+                if (text.isNotBlank()) {
+                    Log.d(TAG, "Result: $text")
+                    transcriptChannel.trySend(text)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Parse error", e)
+            }
         }
 
         override fun onFinalResult(hypothesis: String?) {
@@ -120,6 +157,7 @@ class VoskSpeechRecognizer(private val context: Context) {
         }
 
         override fun onError(e: Exception?) {
+            Log.e(TAG, "Recognition error", e)
             scope.launch {
                 statusChannel.send(
                     RecognitionStatus.Error(e?.message ?: "Recognition error")
@@ -127,17 +165,27 @@ class VoskSpeechRecognizer(private val context: Context) {
             }
         }
 
-        override fun onTimeout() {}
+        override fun onTimeout() {
+            Log.d(TAG, "Timeout (silence) - this is normal")
+        }
     }
 
-    /* ---------------- ASSET COPY ---------------- */
+    /**
+     * Copy model from assets to internal storage
+     */
+    private fun copyAssetModelIfNeeded(modelFolder: String): File {
+        val outDir = File(context.filesDir, "vosk-$modelFolder")
 
-    private fun copyAssetModelIfNeeded(): File {
-        val outDir = File(context.filesDir, "vosk-model")
-        if (outDir.exists()) return outDir
+        if (outDir.exists()) {
+            Log.d(TAG, "Model already exists: ${outDir.absolutePath}")
+            return outDir
+        }
 
+        Log.d(TAG, "Copying model from assets/$modelFolder...")
         outDir.mkdirs()
-        copyAssetsRecursively("model", outDir)
+        copyAssetsRecursively(modelFolder, outDir)
+        Log.d(TAG, "Model copied successfully")
+
         return outDir
     }
 
@@ -163,8 +211,9 @@ class VoskSpeechRecognizer(private val context: Context) {
     }
 }
 
-/* ---------------- STATUS ---------------- */
-
+/**
+ * Recognition status
+ */
 sealed class RecognitionStatus {
     object Initializing : RecognitionStatus()
     object Ready : RecognitionStatus()

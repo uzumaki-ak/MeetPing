@@ -6,36 +6,24 @@ import com.yourname.meetinglistener.models.*
 import java.util.*
 
 /**
- * ContextManager.kt
+ * ContextManager.kt (FIXED VERSION)
  *
- * PURPOSE:
- * Manages the in-memory meeting context during active meetings
- * Provides thread-safe access to meeting state
- * Coordinates between audio capture, transcription, and AI processing
- *
- * FEATURES:
- * - Singleton pattern for global access
+ * FIXES:
+ * - Proper duration calculation
  * - Thread-safe operations
- * - Active meeting state management
- * - Context retrieval for question answering
+ * - Better state management
  */
 class ContextManager private constructor() {
 
     private val TAG = "ContextManager"
 
-    // Current active meeting context (null when no meeting is active)
     private var activeMeetingContext: MeetingContext? = null
-
-    // Lock for thread-safe operations
     private val lock = Any()
 
     companion object {
         @Volatile
         private var instance: ContextManager? = null
 
-        /**
-         * Get singleton instance of ContextManager
-         */
         fun getInstance(): ContextManager {
             return instance ?: synchronized(this) {
                 instance ?: ContextManager().also { instance = it }
@@ -43,16 +31,8 @@ class ContextManager private constructor() {
         }
     }
 
-    /**
-     * Start a new meeting session
-     * Creates new MeetingContext and marks meeting as active
-     *
-     * @param userName User's name for mention detection
-     * @return The newly created MeetingContext
-     */
     fun startMeeting(userName: String): MeetingContext {
         synchronized(lock) {
-            // End any existing meeting first
             endMeeting()
 
             val meetingId = UUID.randomUUID().toString()
@@ -63,35 +43,24 @@ class ContextManager private constructor() {
             )
 
             activeMeetingContext = newContext
-            Log.d(TAG, "Started new meeting: $meetingId")
+            Log.d(TAG, "Started meeting: $meetingId at ${newContext.startTime}")
 
             return newContext
         }
     }
 
-    /**
-     * Get current active meeting context
-     * @return Active MeetingContext or null if no meeting active
-     */
     fun getActiveMeeting(): MeetingContext? {
         synchronized(lock) {
             return activeMeetingContext
         }
     }
 
-    /**
-     * Check if a meeting is currently active
-     */
     fun isMeetingActive(): Boolean {
         synchronized(lock) {
             return activeMeetingContext != null
         }
     }
 
-    /**
-     * End the current meeting
-     * Clears active context
-     */
     fun endMeeting() {
         synchronized(lock) {
             if (activeMeetingContext != null) {
@@ -102,30 +71,32 @@ class ContextManager private constructor() {
     }
 
     /**
-     * Add a transcript chunk to active meeting
-     * Thread-safe operation
-     *
-     * @param chunk TranscriptChunk to add
+     * FIXED: Update duration based on start time
      */
+    fun updateDuration() {
+        synchronized(lock) {
+            activeMeetingContext?.let { context ->
+                val elapsedMs = System.currentTimeMillis() - context.startTime
+                context.durationMinutes = (elapsedMs / 60000).toInt()
+                Log.d(TAG, "Duration updated: ${context.durationMinutes} min")
+            }
+        }
+    }
+
     fun addTranscriptChunk(chunk: TranscriptChunk) {
         synchronized(lock) {
             activeMeetingContext?.let { context ->
                 context.recentTranscripts.add(chunk)
 
-                // Update meeting duration
-                val durationMs = System.currentTimeMillis() - context.startTime
-                context.durationMinutes = (durationMs / 60000).toInt()
+                // Update duration
+                val elapsedMs = System.currentTimeMillis() - context.startTime
+                context.durationMinutes = (elapsedMs / 60000).toInt()
 
-                Log.d(TAG, "Added transcript chunk: ${chunk.text.take(50)}...")
-            } ?: run {
-                Log.w(TAG, "Attempted to add chunk but no active meeting")
+                Log.d(TAG, "Added chunk. Total: ${context.recentTranscripts.size}, Duration: ${context.durationMinutes} min")
             }
         }
     }
 
-    /**
-     * Add a micro summary to active meeting
-     */
     fun addMicroSummary(summary: MicroSummary) {
         synchronized(lock) {
             activeMeetingContext?.microSummaries?.add(summary)
@@ -133,9 +104,6 @@ class ContextManager private constructor() {
         }
     }
 
-    /**
-     * Add a section summary to active meeting
-     */
     fun addSectionSummary(summary: String) {
         synchronized(lock) {
             activeMeetingContext?.sectionSummaries?.add(summary)
@@ -143,9 +111,6 @@ class ContextManager private constructor() {
         }
     }
 
-    /**
-     * Add a decision to active meeting
-     */
     fun addDecision(decision: Decision) {
         synchronized(lock) {
             activeMeetingContext?.decisions?.add(decision)
@@ -153,9 +118,6 @@ class ContextManager private constructor() {
         }
     }
 
-    /**
-     * Add an action item to active meeting
-     */
     fun addActionItem(actionItem: ActionItem) {
         synchronized(lock) {
             activeMeetingContext?.actionItems?.add(actionItem)
@@ -163,20 +125,13 @@ class ContextManager private constructor() {
         }
     }
 
-    /**
-     * Update current topic being discussed
-     */
     fun updateCurrentTopic(topic: String) {
         synchronized(lock) {
             activeMeetingContext?.currentTopic = topic
-            Log.d(TAG, "Updated current topic: $topic")
+            Log.d(TAG, "Updated topic: $topic")
         }
     }
 
-    /**
-     * Get condensed context for LLM query
-     * Thread-safe retrieval
-     */
     fun getCondensedContext(): String {
         synchronized(lock) {
             return activeMeetingContext?.getCondensedContext()
@@ -184,33 +139,37 @@ class ContextManager private constructor() {
         }
     }
 
-    /**
-     * Check if user was mentioned in recent context
-     */
     fun wasUserMentioned(): Boolean {
         synchronized(lock) {
             return activeMeetingContext?.wasUserMentioned() ?: false
         }
     }
 
-    /**
-     * Get meeting duration in minutes
-     */
     fun getMeetingDuration(): Int {
         synchronized(lock) {
-            return activeMeetingContext?.durationMinutes ?: 0
+            activeMeetingContext?.let { context ->
+                val elapsedMs = System.currentTimeMillis() - context.startTime
+                return (elapsedMs / 60000).toInt()
+            }
+            return 0
         }
     }
 
-    /**
-     * Get meeting statistics for UI display
-     */
     fun getMeetingStats(): MeetingStats {
         synchronized(lock) {
             val context = activeMeetingContext
+
+            // Calculate real-time duration
+            val duration = if (context != null) {
+                val elapsedMs = System.currentTimeMillis() - context.startTime
+                (elapsedMs / 60000).toInt()
+            } else {
+                0
+            }
+
             return MeetingStats(
                 isActive = context != null,
-                durationMinutes = context?.durationMinutes ?: 0,
+                durationMinutes = duration,
                 transcriptChunks = context?.recentTranscripts?.size ?: 0,
                 microSummaries = context?.microSummaries?.size ?: 0,
                 sectionSummaries = context?.sectionSummaries?.size ?: 0,
@@ -221,10 +180,6 @@ class ContextManager private constructor() {
     }
 }
 
-/**
- * MeetingStats
- * Data class for meeting statistics display
- */
 data class MeetingStats(
     val isActive: Boolean,
     val durationMinutes: Int,

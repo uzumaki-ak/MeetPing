@@ -1,11 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    activity_settings.xml
-
-    PURPOSE:
-    Settings screen layout
-    API key configuration and user preferences
--->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -21,7 +14,6 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"
-            app:title="Settings"
             app:titleTextColor="@android:color/white" />
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -37,10 +29,11 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <!-- User Info -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="User Information"
+                android:text="👤 User Information"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="?attr/colorPrimary"
@@ -61,10 +54,11 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
+            <!-- Language Selection -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="LLM API Keys"
+                android:text="🌐 Recognition Language"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="?attr/colorPrimary"
@@ -73,7 +67,46 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Add at least one API key to use the app"
+                android:text="Choose the language for speech recognition"
+                android:textSize="12sp"
+                android:textColor="@android:color/darker_gray"
+                android:layout_marginBottom="8dp" />
+
+            <RadioGroup
+                android:id="@+id/radioGroupLanguage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp">
+
+                <RadioButton
+                    android:id="@+id/radioEnglish"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🇬🇧 English"
+                    android:checked="true" />
+
+                <RadioButton
+                    android:id="@+id/radioHindi"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🇮🇳 Hindi (हिंदी)" />
+
+            </RadioGroup>
+
+            <!-- API Keys -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔑 LLM API Keys"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorPrimary"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Add at least one API key (keys are encrypted)"
                 android:textSize="12sp"
                 android:textColor="@android:color/darker_gray"
                 android:layout_marginBottom="12dp" />
@@ -123,10 +156,11 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
+            <!-- Active Provider -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Active Provider"
+                android:text="🤖 Active LLM Provider"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="?attr/colorPrimary"
@@ -159,11 +193,12 @@
 
             </RadioGroup>
 
+            <!-- Action Buttons -->
             <Button
                 android:id="@+id/btnSave"
                 android:layout_width="match_parent"
                 android:layout_height="60dp"
-                android:text="Save Settings"
+                android:text="💾 Save Settings"
                 android:textSize="16sp"
                 android:layout_marginBottom="12dp" />
 
@@ -171,7 +206,7 @@
                 android:id="@+id/btnClearData"
                 android:layout_width="match_parent"
                 android:layout_height="60dp"
-                android:text="Clear All Data"
+                android:text="🗑️ Clear All Data"
                 android:textSize="16sp"
                 android:backgroundTint="@android:color/holo_red_light"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />

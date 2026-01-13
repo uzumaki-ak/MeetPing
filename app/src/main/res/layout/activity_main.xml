@@ -1,20 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    activity_main.xml
-
-    PURPOSE:
-    Main activity layout
-    Shows meeting controls, status, and question interface
--->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    android:layout_height="match_parent">
 
-    <!-- App Bar -->
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -29,7 +19,6 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Main Content -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -41,7 +30,7 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- Meeting Status Card -->
+            <!-- Status Card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -59,7 +48,7 @@
                         android:id="@+id/tvStatus"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="No Active Meeting"
+                        android:text="⚪ No Active Meeting"
                         android:textSize="18sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorPrimary" />
@@ -71,30 +60,53 @@
                         android:layout_marginBottom="8dp"
                         android:background="#E0E0E0" />
 
-                    <!-- Meeting Stats -->
-                    <TextView
-                        android:id="@+id/tvDuration"
-                        android:layout_width="wrap_content"
+                    <!-- Stats Grid -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Duration: 0 min"
-                        android:textSize="14sp"
-                        android:layout_marginTop="4dp" />
+                        android:orientation="horizontal"
+                        android:weightSum="2">
 
-                    <TextView
-                        android:id="@+id/tvDecisions"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Decisions: 0"
-                        android:textSize="14sp"
-                        android:layout_marginTop="4dp" />
+                        <TextView
+                            android:id="@+id/tvDuration"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="⏱️ 0 min"
+                            android:textSize="14sp" />
 
-                    <TextView
-                        android:id="@+id/tvActionItems"
-                        android:layout_width="wrap_content"
+                        <TextView
+                            android:id="@+id/tvTranscripts"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="📝 0 segments"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Action Items: 0"
-                        android:textSize="14sp"
-                        android:layout_marginTop="4dp" />
+                        android:orientation="horizontal"
+                        android:weightSum="2"
+                        android:layout_marginTop="4dp">
+
+                        <TextView
+                            android:id="@+id/tvDecisions"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="✅ 0 decisions"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/tvActionItems"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="📋 0 actions"
+                            android:textSize="14sp" />
+                    </LinearLayout>
 
                 </LinearLayout>
 
@@ -120,7 +132,55 @@
                 android:enabled="false"
                 android:layout_marginBottom="16dp" />
 
-            <!-- Answer Display Card -->
+            <!-- Live Transcripts Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardElevation="4dp"
+                app:cardCornerRadius="8dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="📢 Live Transcripts"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="?attr/colorPrimary" />
+
+                        <Button
+                            android:id="@+id/btnClearTranscripts"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Clear"
+                            android:textSize="12sp"
+                            style="@style/Widget.MaterialComponents.Button.TextButton" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvTranscripts"
+                        android:layout_width="match_parent"
+                        android:layout_height="200dp"
+                        android:layout_marginTop="8dp"
+                        android:background="#F5F5F5" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Answer Card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -137,7 +197,7 @@
                         android:id="@+id/tvAnswerLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Last Answer:"
+                        android:text="💬 Last Answer:"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorPrimary" />

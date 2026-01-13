@@ -32,6 +32,13 @@
             </intent-filter>
         </activity>
 
+
+        <!-- Meeting History Activity -->
+        <activity
+            android:name=".ui.MeetingHistoryActivity"
+            android:parentActivityName=".MainActivity" />
+
+
         <!-- Settings Activity -->
         <activity
             android:name=".ui.SettingsActivity"

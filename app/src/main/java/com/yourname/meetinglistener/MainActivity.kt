@@ -9,82 +9,69 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.yourname.meetinglistener.ai.LLMManager
 import com.yourname.meetinglistener.databinding.ActivityMainBinding
 import com.yourname.meetinglistener.services.AudioCaptureService
 import com.yourname.meetinglistener.storage.ContextManager
 import com.yourname.meetinglistener.ui.BubbleOverlayService
+import com.yourname.meetinglistener.ui.MeetingHistoryActivity
 import com.yourname.meetinglistener.ui.SettingsActivity
+import com.yourname.meetinglistener.ui.TranscriptAdapter
 import com.yourname.meetinglistener.utils.PermissionsHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * MainActivity.kt
+ * MainActivity.kt (COMPLETE VERSION)
  *
- * PURPOSE:
- * Main entry point and control center for the app
- * Manages meeting start/stop, permissions, and user interactions
- *
- * FEATURES:
- * - Start/Stop meeting controls
- * - Real-time meeting statistics display
- * - Question asking interface
- * - Settings access
- * - Permission handling
- *
- * UI COMPONENTS:
- * - Start/Stop meeting button
- * - Meeting status display
- * - Question input field
- * - Meeting stats (duration, decisions, action items)
+ * NEW FEATURES:
+ * - Real-time transcript display
+ * - Proper duration tracking
+ * - Meeting history access
+ * - Better UI feedback
  */
 class MainActivity : AppCompatActivity() {
 
     private val TAG = "MainActivity"
 
-    // View binding
     private lateinit var binding: ActivityMainBinding
-
-    // Helpers and managers
     private lateinit var permissionsHelper: PermissionsHelper
     private lateinit var contextManager: ContextManager
     private lateinit var llmManager: LLMManager
-
-    // SharedPreferences for user name
     private lateinit var prefs: SharedPreferences
 
-    // Meeting state
+    // Transcript adapter for RecyclerView
+    private lateinit var transcriptAdapter: TranscriptAdapter
+
     private var isMeetingActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize view binding
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Initialize components
         permissionsHelper = PermissionsHelper(this)
         contextManager = ContextManager.getInstance()
         llmManager = LLMManager(this)
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
 
-        // Setup UI
         setupUI()
         checkPermissions()
-
-        // Update UI periodically
         startUIUpdateLoop()
     }
 
-    /**
-     * Setup UI components and click listeners
-     */
     private fun setupUI() {
         setSupportActionBar(binding.toolbar)
 
-        // Start/Stop meeting button
+        // Setup transcript RecyclerView
+        transcriptAdapter = TranscriptAdapter()
+        binding.rvTranscripts.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = transcriptAdapter
+        }
+
         binding.btnStartStop.setOnClickListener {
             if (isMeetingActive) {
                 stopMeeting()
@@ -93,25 +80,23 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Ask question button
         binding.btnAskQuestion.setOnClickListener {
             showQuestionDialog()
         }
 
-        // Initially disable question button
-        binding.btnAskQuestion.isEnabled = false
+        binding.btnClearTranscripts.setOnClickListener {
+            transcriptAdapter.clear()
+        }
 
+        binding.btnAskQuestion.isEnabled = false
         updateUI()
     }
 
-    /**
-     * Check and request necessary permissions
-     */
     private fun checkPermissions() {
         if (!permissionsHelper.hasAllPermissions()) {
             AlertDialog.Builder(this)
                 .setTitle("Permissions Required")
-                .setMessage("This app needs microphone and notification permissions to work.")
+                .setMessage("Microphone and notification permissions needed")
                 .setPositiveButton("Grant") { _, _ ->
                     permissionsHelper.requestPermissions()
                 }
@@ -119,11 +104,10 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
-        // Check overlay permission for bubble
         if (!permissionsHelper.hasOverlayPermission()) {
             AlertDialog.Builder(this)
                 .setTitle("Overlay Permission")
-                .setMessage("Allow app to display floating bubble over other apps?")
+                .setMessage("Allow floating bubble over other apps?")
                 .setPositiveButton("Allow") { _, _ ->
                     permissionsHelper.requestOverlayPermission()
                 }
@@ -132,23 +116,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Start meeting session
-     */
     private fun startMeeting() {
-        // Check permissions first
         if (!permissionsHelper.hasAudioPermission()) {
             Toast.makeText(this, "Microphone permission required", Toast.LENGTH_SHORT).show()
             permissionsHelper.requestPermissions()
             return
         }
 
-        // Check if LLM is configured
         if (!llmManager.hasAvailableProvider()) {
             AlertDialog.Builder(this)
                 .setTitle("API Key Required")
-                .setMessage("Please add at least one LLM API key in Settings first.")
-                .setPositiveButton("Open Settings") { _, _ ->
+                .setMessage("Add at least one LLM API key in Settings")
+                .setPositiveButton("Settings") { _, _ ->
                     startActivity(Intent(this, SettingsActivity::class.java))
                 }
                 .setNegativeButton("Cancel", null)
@@ -156,23 +135,21 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Get user's name
         var userName = prefs.getString("user_name", null)
 
         if (userName.isNullOrBlank()) {
-            // Ask for user's name
             val input = android.widget.EditText(this)
             input.hint = "Enter your name"
 
             AlertDialog.Builder(this)
                 .setTitle("What's your name?")
-                .setMessage("Your name will be used to detect when you're mentioned in the meeting.")
+                .setMessage("Used to detect when you're mentioned")
                 .setView(input)
                 .setPositiveButton("Start") { _, _ ->
                     userName = input.text.toString().trim()
-                    if (userName.isNotBlank()) {
+                    if (!userName.isNullOrBlank()) {
                         prefs.edit().putString("user_name", userName).apply()
-                        startMeetingWithName(userName)
+                        startMeetingWithName(userName!!)
                     }
                 }
                 .setNegativeButton("Cancel", null)
@@ -182,18 +159,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Actually start the meeting with user name
-     */
     private fun startMeetingWithName(userName: String) {
+        // Get language preference
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val language = prefs.getString("language", "en") ?: "en"
+
         // Start audio capture service
         val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
             action = AudioCaptureService.ACTION_START
             putExtra(AudioCaptureService.EXTRA_USER_NAME, userName)
+            putExtra(AudioCaptureService.EXTRA_LANGUAGE, language) // NEW
         }
         startService(serviceIntent)
 
-        // Start bubble overlay if permission granted
+        // Start bubble overlay
         if (permissionsHelper.hasOverlayPermission()) {
             val bubbleIntent = Intent(this, BubbleOverlayService::class.java).apply {
                 action = BubbleOverlayService.ACTION_SHOW
@@ -202,22 +181,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         isMeetingActive = true
+        transcriptAdapter.clear()
         updateUI()
 
-        Toast.makeText(this, "Meeting started. Listening...", Toast.LENGTH_SHORT).show()
+        val langName = if (language == "hi") "Hindi" else "English"
+        Toast.makeText(this, "Meeting started in $langName! Speak clearly 🎤", Toast.LENGTH_SHORT).show()
     }
 
-    /**
-     * Stop meeting session
-     */
     private fun stopMeeting() {
-        // Stop audio capture service
         val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
             action = AudioCaptureService.ACTION_STOP
         }
         startService(serviceIntent)
 
-        // Hide bubble
         val bubbleIntent = Intent(this, BubbleOverlayService::class.java).apply {
             action = BubbleOverlayService.ACTION_HIDE
         }
@@ -226,18 +202,14 @@ class MainActivity : AppCompatActivity() {
         isMeetingActive = false
         updateUI()
 
-        // Show final summary dialog
         showFinalSummaryDialog()
 
         Toast.makeText(this, "Meeting stopped", Toast.LENGTH_SHORT).show()
     }
 
-    /**
-     * Show question dialog
-     */
     private fun showQuestionDialog() {
         val input = android.widget.EditText(this)
-        input.hint = "Ask a question about the meeting..."
+        input.hint = "Ask about the meeting..."
         input.setSingleLine(false)
         input.minLines = 3
 
@@ -254,20 +226,13 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /**
-     * Answer user's question using LLM
-     */
     private fun answerQuestion(question: String) {
-        // Show progress
         binding.tvAnswerLabel.text = "Thinking..."
-        binding.tvAnswer.text = "Processing your question..."
+        binding.tvAnswer.text = "Processing..."
 
         lifecycleScope.launch {
             try {
-                // Get context from ContextManager
                 val context = contextManager.getCondensedContext()
-
-                // Ask LLM
                 val response = llmManager.answerQuestion(question, context)
 
                 if (response.success) {
@@ -275,7 +240,7 @@ class MainActivity : AppCompatActivity() {
                     binding.tvAnswer.text = response.content
                 } else {
                     binding.tvAnswerLabel.text = "Error:"
-                    binding.tvAnswer.text = response.errorMessage ?: "Failed to get answer"
+                    binding.tvAnswer.text = response.errorMessage ?: "Failed"
                 }
 
             } catch (e: Exception) {
@@ -285,81 +250,77 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Show final summary dialog when meeting ends
-     */
     private fun showFinalSummaryDialog() {
         lifecycleScope.launch {
-            // Wait a moment for final processing
             delay(1000)
 
-            // Get final summary from context
             val stats = contextManager.getMeetingStats()
 
             val summaryText = buildString {
-                appendLine("Meeting Duration: ${stats.durationMinutes} minutes")
-                appendLine("Decisions Made: ${stats.decisions}")
+                appendLine("Duration: ${stats.durationMinutes} minutes")
+                appendLine("Transcripts: ${stats.transcriptChunks}")
+                appendLine("Decisions: ${stats.decisions}")
                 appendLine("Action Items: ${stats.actionItems}")
-                appendLine("\nFull summary available in meeting history.")
+                appendLine("\nView in Meeting History")
             }
 
             AlertDialog.Builder(this@MainActivity)
                 .setTitle("Meeting Ended")
                 .setMessage(summaryText)
-                .setPositiveButton("OK", null)
+                .setPositiveButton("View History") { _, _ ->
+                    startActivity(Intent(this@MainActivity, MeetingHistoryActivity::class.java))
+                }
+                .setNegativeButton("Close", null)
                 .show()
         }
     }
 
-    /**
-     * Update UI based on current state
-     */
     private fun updateUI() {
         if (isMeetingActive) {
             binding.btnStartStop.text = "Stop Meeting"
             binding.btnStartStop.setBackgroundColor(getColor(android.R.color.holo_red_dark))
             binding.btnAskQuestion.isEnabled = true
-            binding.tvStatus.text = "Meeting Active - Listening..."
+            binding.tvStatus.text = "🔴 Meeting Active"
         } else {
             binding.btnStartStop.text = "Start Meeting"
             binding.btnStartStop.setBackgroundColor(getColor(android.R.color.holo_green_dark))
             binding.btnAskQuestion.isEnabled = false
-            binding.tvStatus.text = "No Active Meeting"
+            binding.tvStatus.text = "⚪ No Active Meeting"
         }
 
-        // Update stats
         val stats = contextManager.getMeetingStats()
-        binding.tvDuration.text = "Duration: ${stats.durationMinutes} min"
-        binding.tvDecisions.text = "Decisions: ${stats.decisions}"
-        binding.tvActionItems.text = "Action Items: ${stats.actionItems}"
+        binding.tvDuration.text = "⏱️ ${stats.durationMinutes} min"
+        binding.tvTranscripts.text = "📝 ${stats.transcriptChunks} segments"
+        binding.tvDecisions.text = "✅ ${stats.decisions} decisions"
+        binding.tvActionItems.text = "📋 ${stats.actionItems} actions"
+
+        // Update transcript list
+        if (isMeetingActive) {
+            val meeting = contextManager.getActiveMeeting()
+            meeting?.let {
+                transcriptAdapter.updateTranscripts(it.recentTranscripts)
+            }
+        }
     }
 
-    /**
-     * Start UI update loop
-     * Updates stats every 5 seconds while meeting is active
-     */
     private fun startUIUpdateLoop() {
         lifecycleScope.launch {
             while (true) {
-                delay(5000) // Update every 5 seconds
+                delay(2000) // Update every 2 seconds
                 if (isMeetingActive) {
+                    // Force duration recalculation
+                    contextManager.updateDuration()
                     updateUI()
                 }
             }
         }
     }
 
-    /**
-     * Create options menu
-     */
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
     }
 
-    /**
-     * Handle menu item clicks
-     */
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_settings -> {
@@ -367,17 +328,13 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_history -> {
-                // TODO: Open meeting history
-                Toast.makeText(this, "Meeting history coming soon", Toast.LENGTH_SHORT).show()
+                startActivity(Intent(this, MeetingHistoryActivity::class.java))
                 true
             }
             else -> super.onOptionsItemSelected(item)
         }
     }
 
-    /**
-     * Handle permission request results
-     */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,

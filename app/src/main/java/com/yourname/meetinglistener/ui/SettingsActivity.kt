@@ -3,22 +3,14 @@ package com.yourname.meetinglistener.ui
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.yourname.meetinglistener.databinding.ActivitySettingsBinding
+import com.yourname.meetinglistener.storage.MeetingDatabase
 import com.yourname.meetinglistener.utils.ApiKeyManager
+import kotlinx.coroutines.launch
 
 /**
- * SettingsActivity.kt
- *
- * PURPOSE:
- * Allows user to configure app settings
- * Manage API keys for different LLM providers
- * Set user name and preferences
- *
- * FEATURES:
- * - API key input for Claude, Gemini, Euron
- * - Active provider selection
- * - User name configuration
- * - Clear all data option
+ * SettingsActivity.kt (FIXED - COROUTINE ERROR)
  */
 class SettingsActivity : AppCompatActivity() {
 
@@ -37,35 +29,22 @@ class SettingsActivity : AppCompatActivity() {
         loadCurrentSettings()
     }
 
-    /**
-     * Setup UI components
-     */
     private fun setupUI() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "Settings"
 
-        // Save button
         binding.btnSave.setOnClickListener {
             saveSettings()
         }
 
-        // Clear data button
         binding.btnClearData.setOnClickListener {
             clearAllData()
         }
-
-        // Provider radio buttons
-        binding.radioGroupProvider.setOnCheckedChangeListener { _, checkedId ->
-            // Handle provider selection change if needed
-        }
     }
 
-    /**
-     * Load current settings into UI
-     */
     private fun loadCurrentSettings() {
-        // Load API keys (show masked)
+        // Load API keys (masked)
         val claudeKey = apiKeyManager.getClaudeKey()
         val geminiKey = apiKeyManager.getGeminiKey()
         val euronKey = apiKeyManager.getEuronKey()
@@ -74,7 +53,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.etGeminiKey.setText(if (geminiKey.isNotBlank()) "••••••••" else "")
         binding.etEuronKey.setText(if (euronKey.isNotBlank()) "••••••••" else "")
 
-        // Set hint to show if key is from BuildConfig or user-provided
         binding.etClaudeKey.hint = if (claudeKey.isNotBlank()) "Key configured" else "Enter Claude API key"
         binding.etGeminiKey.hint = if (geminiKey.isNotBlank()) "Key configured" else "Enter Gemini API key"
         binding.etEuronKey.hint = if (euronKey.isNotBlank()) "Key configured" else "Enter Euron API key"
@@ -91,13 +69,17 @@ class SettingsActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         val userName = prefs.getString("user_name", "")
         binding.etUserName.setText(userName)
+
+        // Load language preference
+        val language = prefs.getString("language", "en") ?: "en"
+        when (language) {
+            "en" -> binding.radioEnglish.isChecked = true
+            "hi" -> binding.radioHindi.isChecked = true
+        }
     }
 
-    /**
-     * Save settings
-     */
     private fun saveSettings() {
-        // Save API keys (only if not masked placeholder)
+        // Save API keys
         val claudeKey = binding.etClaudeKey.text.toString()
         if (claudeKey.isNotBlank() && !claudeKey.contains("•")) {
             apiKeyManager.setClaudeKey(claudeKey)
@@ -124,29 +106,44 @@ class SettingsActivity : AppCompatActivity() {
 
         // Save user name
         val userName = binding.etUserName.text.toString().trim()
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+
         if (userName.isNotBlank()) {
-            val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
             prefs.edit().putString("user_name", userName).apply()
         }
 
-        Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
+        // Save language preference
+        val selectedLanguage = when (binding.radioGroupLanguage.checkedRadioButtonId) {
+            binding.radioEnglish.id -> "en"
+            binding.radioHindi.id -> "hi"
+            else -> "en"
+        }
+        prefs.edit().putString("language", selectedLanguage).apply()
+
+        Toast.makeText(this, "Settings saved ✅", Toast.LENGTH_SHORT).show()
         finish()
     }
 
-    /**
-     * Clear all data
-     */
     private fun clearAllData() {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Clear All Data")
-            .setMessage("This will delete all API keys and settings. Continue?")
+            .setMessage("This will delete:\n• All API keys\n• Meeting history\n• All settings\n\nContinue?")
             .setPositiveButton("Clear") { _, _ ->
+                // Clear API keys
                 apiKeyManager.clearAllKeys()
 
+                // Clear preferences
                 val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
                 prefs.edit().clear().apply()
 
-                Toast.makeText(this, "All data cleared", Toast.LENGTH_SHORT).show()
+                // Clear database using lifecycleScope (FIXED)
+                lifecycleScope.launch {
+                    val db = MeetingDatabase.getDatabase(this@SettingsActivity)
+                    db.meetingSummaryDao().deleteAll()
+                    db.transcriptChunkDao().deleteAll()
+                }
+
+                Toast.makeText(this, "All data cleared ✅", Toast.LENGTH_SHORT).show()
                 finish()
             }
             .setNegativeButton("Cancel", null)

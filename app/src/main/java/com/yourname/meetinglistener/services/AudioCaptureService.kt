@@ -14,26 +14,18 @@ import androidx.core.app.NotificationCompat
 import com.yourname.meetinglistener.MainActivity
 import com.yourname.meetinglistener.R
 import com.yourname.meetinglistener.ai.LLMManager
+import com.yourname.meetinglistener.ai.MoMGenerator
 import com.yourname.meetinglistener.ai.SummarizerEngine
 import com.yourname.meetinglistener.speech.AudioProcessor
 import com.yourname.meetinglistener.speech.RecognitionStatus
 import com.yourname.meetinglistener.speech.VoskSpeechRecognizer
 import com.yourname.meetinglistener.storage.ContextManager
+import com.yourname.meetinglistener.storage.MeetingDatabase
 import com.yourname.meetinglistener.utils.NotificationHelper
 import kotlinx.coroutines.*
 
 /**
- * AudioCaptureService.kt (FIXED VERSION with Vosk)
- *
- * PURPOSE:
- * Foreground service using Vosk for continuous speech recognition
- * Handles pauses naturally without restart
- *
- * IMPROVEMENTS:
- * - Uses Vosk instead of Android SpeechRecognizer
- * - Truly continuous (no restart needed)
- * - Better for meetings with pauses
- * - 100% offline and free
+ * AudioCaptureService.kt (COMPLETE WITH LANGUAGE SUPPORT)
  */
 class AudioCaptureService : Service() {
 
@@ -45,9 +37,9 @@ class AudioCaptureService : Service() {
         const val ACTION_START = "START_LISTENING"
         const val ACTION_STOP = "STOP_LISTENING"
         const val EXTRA_USER_NAME = "user_name"
+        const val EXTRA_LANGUAGE = "language" // NEW
     }
 
-    // Core components
     private lateinit var speechRecognizer: VoskSpeechRecognizer
     private lateinit var audioProcessor: AudioProcessor
     private lateinit var contextManager: ContextManager
@@ -64,8 +56,6 @@ class AudioCaptureService : Service() {
         super.onCreate()
         Log.d(TAG, "Service created")
 
-        // Initialize components
-        speechRecognizer = VoskSpeechRecognizer(this)
         audioProcessor = AudioProcessor()
         contextManager = ContextManager.getInstance()
         llmManager = LLMManager(this)
@@ -81,7 +71,13 @@ class AudioCaptureService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 userName = intent.getStringExtra(EXTRA_USER_NAME) ?: ""
-                startListening()
+                val languageCode = intent.getStringExtra(EXTRA_LANGUAGE) ?: "en"
+                val language = if (languageCode == "hi") {
+                    VoskSpeechRecognizer.Language.HINDI
+                } else {
+                    VoskSpeechRecognizer.Language.ENGLISH
+                }
+                startListening(language)
             }
             ACTION_STOP -> {
                 stopListening()
@@ -91,20 +87,16 @@ class AudioCaptureService : Service() {
         return START_STICKY
     }
 
-    /**
-     * Start listening with Vosk
-     */
-    private fun startListening() {
-        Log.d(TAG, "Starting Vosk audio capture for user: $userName")
+    private fun startListening(language: VoskSpeechRecognizer.Language) {
+        Log.d(TAG, "Starting with ${language.displayName} for user: $userName")
 
-        // Start meeting context
         contextManager.startMeeting(userName)
 
-        // Start foreground
-        val notification = createNotification("Initializing...")
+        val notification = createNotification("Initializing ${language.displayName}...")
         startForeground(NOTIFICATION_ID, notification)
 
-        // Initialize Vosk
+        // Initialize with selected language
+        speechRecognizer = VoskSpeechRecognizer(this, language)
         speechRecognizer.initialize()
 
         // Monitor status
@@ -122,9 +114,6 @@ class AudioCaptureService : Service() {
         }
     }
 
-    /**
-     * Handle recognition status changes
-     */
     private fun handleRecognitionStatus(status: RecognitionStatus) {
         when (status) {
             is RecognitionStatus.Initializing -> {
@@ -136,7 +125,7 @@ class AudioCaptureService : Service() {
                 speechRecognizer.startListening()
             }
             is RecognitionStatus.Listening -> {
-                updateNotification("Listening to meeting...")
+                updateNotification("🎤 Listening...")
                 Log.d(TAG, "Now listening")
             }
             is RecognitionStatus.Stopped -> {
@@ -144,71 +133,72 @@ class AudioCaptureService : Service() {
                 Log.d(TAG, "Stopped")
             }
             is RecognitionStatus.Error -> {
-                updateNotification("Error: ${status.message}")
+                updateNotification("⚠️ Error: ${status.message}")
                 Log.e(TAG, "Error: ${status.message}")
             }
         }
     }
 
-    /**
-     * Process incoming transcript
-     */
     private suspend fun processTranscript(rawTranscript: String) {
         transcriptCount++
         Log.d(TAG, "Transcript #$transcriptCount: ${rawTranscript.take(50)}...")
 
-        // Update notification with count
-        updateNotification("Listening... ($transcriptCount segments captured)")
+        updateNotification("🎤 Listening... ($transcriptCount captured)")
 
-        // Convert to chunk
         val chunk = audioProcessor.processTranscript(rawTranscript) ?: return
 
-        // Add to context
         contextManager.addTranscriptChunk(chunk)
 
-        // Check for name mention
         if (audioProcessor.containsUserName(rawTranscript, userName)) {
             Log.d(TAG, "🔔 User name detected!")
             notificationHelper.sendNameMentionAlert(userName)
         }
 
-        // Get context
         val meetingContext = contextManager.getActiveMeeting() ?: return
-
-        // Process through summarizer
         summarizerEngine.processTranscriptChunk(chunk, meetingContext)
     }
 
-    /**
-     * Stop listening
-     */
     private fun stopListening() {
         Log.d(TAG, "Stopping audio capture")
 
-        // Stop recognition
         speechRecognizer.stopListening()
 
-        // Generate final summary
         serviceScope.launch {
             val context = contextManager.getActiveMeeting()
             if (context != null) {
-                val finalSummary = summarizerEngine.generateFinalSummary(context)
-                Log.d(TAG, "Final summary generated")
-                // TODO: Save to database
+                try {
+                    updateNotification("Generating meeting summary...")
+
+                    val momGenerator = MoMGenerator(llmManager)
+                    val meetingSummary = momGenerator.generateMoM(context)
+
+                    val database = MeetingDatabase.getDatabase(this@AudioCaptureService)
+                    database.meetingSummaryDao().insert(meetingSummary)
+
+                    val chunks = context.recentTranscripts.map { chunk ->
+                        com.yourname.meetinglistener.storage.entities.TranscriptChunkEntity(
+                            meetingId = context.meetingId,
+                            text = chunk.text,
+                            timestamp = chunk.timestamp,
+                            timestampMillis = chunk.timestampMillis,
+                            speakerInfo = chunk.speakerInfo
+                        )
+                    }
+                    database.transcriptChunkDao().insertAll(chunks)
+
+                    Log.d(TAG, "✅ Meeting saved to database")
+
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Error saving meeting: ${e.message}", e)
+                }
             }
         }
 
-        // End meeting
         contextManager.endMeeting()
-
-        // Stop service
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
-    /**
-     * Create notification
-     */
     private fun createNotification(text: String = "Listening..."): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -226,9 +216,6 @@ class AudioCaptureService : Service() {
             .build()
     }
 
-    /**
-     * Update notification text
-     */
     private fun updateNotification(text: String) {
         val notification = createNotification(text)
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE)
@@ -236,9 +223,6 @@ class AudioCaptureService : Service() {
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
-    /**
-     * Create notification channel
-     */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(

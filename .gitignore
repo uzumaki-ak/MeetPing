@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Vosk speech models
+app/src/main/assets/model/
+app/src/main/assets/model-hi/
