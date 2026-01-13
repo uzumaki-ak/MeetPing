@@ -25,7 +25,12 @@ import com.yourname.meetinglistener.utils.NotificationHelper
 import kotlinx.coroutines.*
 
 /**
- * AudioCaptureService.kt (COMPLETE WITH LANGUAGE SUPPORT)
+ * AudioCaptureService.kt (FIXED)
+ *
+ * FIXES:
+ * - Proper duration tracking
+ * - Guaranteed MoM generation
+ * - Fixed suspend function call in stopListening
  */
 class AudioCaptureService : Service() {
 
@@ -37,7 +42,7 @@ class AudioCaptureService : Service() {
         const val ACTION_START = "START_LISTENING"
         const val ACTION_STOP = "STOP_LISTENING"
         const val EXTRA_USER_NAME = "user_name"
-        const val EXTRA_LANGUAGE = "language" // NEW
+        const val EXTRA_LANGUAGE = "language"
     }
 
     private lateinit var speechRecognizer: VoskSpeechRecognizer
@@ -51,6 +56,9 @@ class AudioCaptureService : Service() {
 
     private var userName: String = ""
     private var transcriptCount = 0
+
+    // Duration update job
+    private var durationUpdateJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -88,14 +96,19 @@ class AudioCaptureService : Service() {
     }
 
     private fun startListening(language: VoskSpeechRecognizer.Language) {
-        Log.d(TAG, "Starting with ${language.displayName} for user: $userName")
+        Log.d(TAG, "🎤 Starting with ${language.displayName} for user: $userName")
 
+        // Start meeting context
         contextManager.startMeeting(userName)
 
+        // Start foreground
         val notification = createNotification("Initializing ${language.displayName}...")
         startForeground(NOTIFICATION_ID, notification)
 
-        // Initialize with selected language
+        // Start duration update job (every 10 seconds)
+        startDurationUpdates()
+
+        // Initialize Vosk
         speechRecognizer = VoskSpeechRecognizer(this, language)
         speechRecognizer.initialize()
 
@@ -114,43 +127,44 @@ class AudioCaptureService : Service() {
         }
     }
 
+    private fun startDurationUpdates() {
+        durationUpdateJob?.cancel()
+        durationUpdateJob = serviceScope.launch {
+            while (isActive) {
+                contextManager.updateDuration()
+                delay(10000)
+            }
+        }
+    }
+
     private fun handleRecognitionStatus(status: RecognitionStatus) {
         when (status) {
             is RecognitionStatus.Initializing -> {
                 updateNotification("Loading speech model...")
-                Log.d(TAG, "Initializing...")
             }
             is RecognitionStatus.Ready -> {
-                Log.d(TAG, "Ready - starting recognition")
                 speechRecognizer.startListening()
             }
             is RecognitionStatus.Listening -> {
                 updateNotification("🎤 Listening...")
-                Log.d(TAG, "Now listening")
             }
             is RecognitionStatus.Stopped -> {
                 updateNotification("Stopped")
-                Log.d(TAG, "Stopped")
             }
             is RecognitionStatus.Error -> {
                 updateNotification("⚠️ Error: ${status.message}")
-                Log.e(TAG, "Error: ${status.message}")
             }
         }
     }
 
     private suspend fun processTranscript(rawTranscript: String) {
         transcriptCount++
-        Log.d(TAG, "Transcript #$transcriptCount: ${rawTranscript.take(50)}...")
-
         updateNotification("🎤 Listening... ($transcriptCount captured)")
 
         val chunk = audioProcessor.processTranscript(rawTranscript) ?: return
-
         contextManager.addTranscriptChunk(chunk)
 
-        if (audioProcessor.containsUserName(rawTranscript, userName)) {
-            Log.d(TAG, "🔔 User name detected!")
+        if (isNameMentioned(rawTranscript, userName)) {
             notificationHelper.sendNameMentionAlert(userName)
         }
 
@@ -158,45 +172,66 @@ class AudioCaptureService : Service() {
         summarizerEngine.processTranscriptChunk(chunk, meetingContext)
     }
 
-    private fun stopListening() {
-        Log.d(TAG, "Stopping audio capture")
+    private fun isNameMentioned(transcript: String, name: String): Boolean {
+        val lowerTranscript = transcript.lowercase()
+        val lowerName = name.lowercase()
+        return lowerTranscript.contains(lowerName)
+    }
 
+    private fun stopListening() {
+        Log.d(TAG, "🛑 Stopping audio capture")
+
+        // Cancel duration updates and stop recognition immediately
+        durationUpdateJob?.cancel()
         speechRecognizer.stopListening()
 
+        updateNotification("Generating meeting summary...")
+
+        // Process summary and stop service in a coroutine
         serviceScope.launch {
-            val context = contextManager.getActiveMeeting()
-            if (context != null) {
-                try {
-                    updateNotification("Generating meeting summary...")
+            try {
+                val context = contextManager.getActiveMeeting()
+                if (context == null) {
+                    Log.e(TAG, "❌ No active meeting context!")
+                } else {
+                    contextManager.updateDuration()
+                    val finalTranscripts = context.recentTranscripts.size
 
-                    val momGenerator = MoMGenerator(llmManager)
-                    val meetingSummary = momGenerator.generateMoM(context)
+                    if (finalTranscripts > 0) {
+                        Log.d(TAG, "📝 Generating MoM for $finalTranscripts transcripts...")
+                        val momGenerator = MoMGenerator(llmManager)
+                        val meetingSummary = momGenerator.generateMoM(context)
 
-                    val database = MeetingDatabase.getDatabase(this@AudioCaptureService)
-                    database.meetingSummaryDao().insert(meetingSummary)
+                        val database = MeetingDatabase.getDatabase(this@AudioCaptureService)
+                        database.meetingSummaryDao().insert(meetingSummary)
 
-                    val chunks = context.recentTranscripts.map { chunk ->
-                        com.yourname.meetinglistener.storage.entities.TranscriptChunkEntity(
-                            meetingId = context.meetingId,
-                            text = chunk.text,
-                            timestamp = chunk.timestamp,
-                            timestampMillis = chunk.timestampMillis,
-                            speakerInfo = chunk.speakerInfo
-                        )
+                        val chunks = context.recentTranscripts.map { chunk ->
+                            com.yourname.meetinglistener.storage.entities.TranscriptChunkEntity(
+                                meetingId = context.meetingId,
+                                text = chunk.text,
+                                timestamp = chunk.timestamp,
+                                timestampMillis = chunk.timestampMillis,
+                                speakerInfo = chunk.speakerInfo
+                            )
+                        }
+                        if (chunks.isNotEmpty()) {
+                            database.transcriptChunkDao().insertAll(chunks)
+                        }
+                        Log.d(TAG, "✅ Meeting saved successfully")
+                    } else {
+                        Log.w(TAG, "⚠️ No transcripts captured")
                     }
-                    database.transcriptChunkDao().insertAll(chunks)
-
-                    Log.d(TAG, "✅ Meeting saved to database")
-
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ Error saving meeting: ${e.message}", e)
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ ERROR saving meeting: ${e.message}", e)
+            } finally {
+                contextManager.endMeeting()
+                // Small delay to ensure DB operations complete before service kills process
+                delay(1500)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
             }
         }
-
-        contextManager.endMeeting()
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
     }
 
     private fun createNotification(text: String = "Listening..."): Notification {
@@ -218,8 +253,7 @@ class AudioCaptureService : Service() {
 
     private fun updateNotification(text: String) {
         val notification = createNotification(text)
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE)
-                as NotificationManager
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
@@ -232,17 +266,14 @@ class AudioCaptureService : Service() {
             ).apply {
                 description = "Active meeting listening"
             }
-
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE)
-                    as NotificationManager
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "Service destroyed")
-
+        durationUpdateJob?.cancel()
         speechRecognizer.destroy()
         audioProcessor.reset()
         serviceScope.cancel()

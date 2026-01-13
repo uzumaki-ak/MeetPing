@@ -20,6 +20,7 @@ import com.yourname.meetinglistener.ui.SettingsActivity
 import com.yourname.meetinglistener.ui.TranscriptAdapter
 import com.yourname.meetinglistener.utils.PermissionsHelper
 import kotlinx.coroutines.delay
+import android.util.Log
 import kotlinx.coroutines.launch
 
 /**
@@ -252,26 +253,57 @@ class MainActivity : AppCompatActivity() {
 
     private fun showFinalSummaryDialog() {
         lifecycleScope.launch {
-            delay(1000)
+            // Wait for MoM generation
+            delay(3000) // Give service time to save
 
-            val stats = contextManager.getMeetingStats()
+            // Load from database
+            try {
+                val database = com.yourname.meetinglistener.storage.MeetingDatabase.getDatabase(this@MainActivity)
+                val allMeetings = database.meetingSummaryDao().getAllSummaries()
 
-            val summaryText = buildString {
-                appendLine("Duration: ${stats.durationMinutes} minutes")
-                appendLine("Transcripts: ${stats.transcriptChunks}")
-                appendLine("Decisions: ${stats.decisions}")
-                appendLine("Action Items: ${stats.actionItems}")
-                appendLine("\nView in Meeting History")
-            }
-
-            AlertDialog.Builder(this@MainActivity)
-                .setTitle("Meeting Ended")
-                .setMessage(summaryText)
-                .setPositiveButton("View History") { _, _ ->
-                    startActivity(Intent(this@MainActivity, MeetingHistoryActivity::class.java))
+                if (allMeetings.isEmpty()) {
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Meeting Too Short")
+                        .setMessage("No transcripts were captured. The meeting may have been too short or there were microphone issues.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                    return@launch
                 }
-                .setNegativeButton("Close", null)
-                .show()
+
+                // Get most recent meeting
+                val latestMeeting = allMeetings.first()
+
+                val summaryText = buildString {
+                    appendLine("⏱️ Duration: ${latestMeeting.durationMinutes} minutes")
+                    appendLine("📝 Transcripts: ${latestMeeting.transcriptCount} segments")
+                    appendLine()
+                    appendLine("📋 Summary:")
+                    appendLine(latestMeeting.finalSummary.take(200))
+                    if (latestMeeting.finalSummary.length > 200) {
+                        appendLine("...")
+                    }
+                }
+
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("✅ Meeting Saved!")
+                    .setMessage(summaryText)
+                    .setPositiveButton("View Details") { _, _ ->
+                        startActivity(Intent(this@MainActivity, com.yourname.meetinglistener.ui.MeetingHistoryActivity::class.java))
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading meeting: ${e.message}")
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Meeting Ended")
+                    .setMessage("Meeting was saved. Check Meeting History.")
+                    .setPositiveButton("View History") { _, _ ->
+                        startActivity(Intent(this@MainActivity, com.yourname.meetinglistener.ui.MeetingHistoryActivity::class.java))
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            }
         }
     }
 

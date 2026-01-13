@@ -58,8 +58,11 @@ class LLMManager(context: Context) {
      * @param context Meeting context (condensed)
      * @return LLMResponse with answer or error
      */
+    /**
+     * Answer user's question with automatic provider fallback
+     * WORKS WITH ANY LANGUAGE - Hindi, English, mixed
+     */
     suspend fun answerQuestion(question: String, context: String): LLMResponse {
-        // Get list of providers to try (active provider first)
         val providers = getProviderFallbackOrder()
 
         if (providers.isEmpty()) {
@@ -71,38 +74,52 @@ class LLMManager(context: Context) {
             )
         }
 
-        // Try each provider until one succeeds
+        // Enhanced prompt for multilingual support
+        val enhancedContext = """
+MEETING CONTEXT:
+$context
+
+USER'S QUESTION (answer in the SAME language as the question):
+$question
+
+INSTRUCTIONS:
+- Answer in the SAME language as the question
+- If question is in Hindi, answer in Hindi
+- If question is in English, answer in English
+- Be concise (2-4 sentences)
+- If information not available, say "I don't have that information"
+
+ANSWER:
+    """.trimIndent()
+
         for (provider in providers) {
             try {
-                Log.d(TAG, "Attempting to answer with provider: $provider")
+                Log.d(TAG, "Attempting with provider: $provider")
 
                 val response = when (provider) {
                     ApiKeyManager.PROVIDER_CLAUDE ->
-                        claudeClient?.answerQuestion(question, context)
+                        claudeClient?.answerQuestion(question, enhancedContext)
                     ApiKeyManager.PROVIDER_GEMINI ->
-                        geminiClient?.answerQuestion(question, context)
+                        geminiClient?.answerQuestion(question, enhancedContext)
                     ApiKeyManager.PROVIDER_EURON ->
-                        euronClient?.answerQuestion(question, context)
+                        euronClient?.answerQuestion(question, enhancedContext)
                     else -> null
                 }
 
-                // If response is successful, return it
                 if (response != null && response.success) {
-                    Log.d(TAG, "Successfully answered with $provider")
+                    Log.d(TAG, "Success with $provider")
                     return response
                 }
 
-                // If response failed, log and try next provider
                 Log.w(TAG, "Provider $provider failed: ${response?.errorMessage}")
 
             } catch (e: Exception) {
-                Log.e(TAG, "Exception with provider $provider: ${e.message}", e)
+                Log.e(TAG, "Exception with $provider: ${e.message}", e)
             }
         }
 
-        // All providers failed
         return LLMResponse(
-            content = "Unable to answer question. All LLM providers failed. Please check your API keys and internet connection.",
+            content = "Unable to answer. All LLM providers failed. Check API keys and internet.",
             provider = "fallback_failed",
             success = false,
             errorMessage = "All providers failed"

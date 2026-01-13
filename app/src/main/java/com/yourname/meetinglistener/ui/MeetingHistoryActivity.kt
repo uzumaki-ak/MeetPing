@@ -136,23 +136,24 @@ class MeetingHistoryActivity : AppCompatActivity() {
 
     private fun queryMeeting(meeting: MeetingSummaryEntity, question: String) {
         lifecycleScope.launch {
-            // Build context from meeting
+            // Build multilingual context
             val context = buildString {
-                appendLine("MEETING CONTEXT:")
+                appendLine("MEETING INFORMATION:")
                 appendLine("Date: ${formatDate(meeting.startTime)}")
                 appendLine("Duration: ${meeting.durationMinutes} minutes")
                 appendLine()
-                appendLine("SUMMARY:")
+                appendLine("MEETING SUMMARY:")
                 appendLine(meeting.finalSummary)
                 appendLine()
-                appendLine("DECISIONS:")
+                appendLine("DECISIONS MADE:")
                 appendLine(meeting.decisions)
                 appendLine()
                 appendLine("ACTION ITEMS:")
                 appendLine(meeting.actionItems)
+                appendLine()
+                appendLine("NOTE: Answer in the SAME language as the question.")
             }
 
-            // Show loading
             val loadingDialog = AlertDialog.Builder(this@MeetingHistoryActivity)
                 .setTitle("Thinking...")
                 .setMessage("Processing your question...")
@@ -166,9 +167,12 @@ class MeetingHistoryActivity : AppCompatActivity() {
                 loadingDialog.dismiss()
 
                 AlertDialog.Builder(this@MeetingHistoryActivity)
-                    .setTitle("Answer (${response.provider})")
+                    .setTitle(if (response.success) "💬 Answer" else "❌ Error")
                     .setMessage(if (response.success) response.content else "Error: ${response.errorMessage}")
                     .setPositiveButton("OK", null)
+                    .setNeutralButton("Ask Again") { _, _ ->
+                        showQueryDialog(meeting)
+                    }
                     .show()
 
             } catch (e: Exception) {
@@ -176,7 +180,7 @@ class MeetingHistoryActivity : AppCompatActivity() {
 
                 AlertDialog.Builder(this@MeetingHistoryActivity)
                     .setTitle("Error")
-                    .setMessage("Failed to get answer: ${e.message}")
+                    .setMessage("Failed: ${e.message}")
                     .setPositiveButton("OK", null)
                     .show()
             }
