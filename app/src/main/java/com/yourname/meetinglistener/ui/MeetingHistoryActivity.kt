@@ -2,6 +2,7 @@ package com.yourname.meetinglistener.ui
 
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -47,12 +48,25 @@ class MeetingHistoryActivity : AppCompatActivity() {
         adapter = MeetingHistoryAdapter(
             onItemClick = { meeting -> showMeetingDetails(meeting) },
             onQueryClick = { meeting -> showQueryDialog(meeting) },
+            onExportClick = { meeting -> exportMeeting(meeting) }, // NEW
             onDeleteClick = { meeting -> deleteMeeting(meeting) }
         )
 
         binding.rvMeetings.layoutManager = LinearLayoutManager(this)
         binding.rvMeetings.adapter = adapter
     }
+
+    private fun exportMeeting(meeting: MeetingSummaryEntity) {
+        val exporter = com.yourname.meetinglistener.utils.MeetingExporter(this)
+        val intent = exporter.exportToTxt(meeting)
+
+        if (intent != null) {
+            startActivity(intent)
+        } else {
+            Toast.makeText(this, "Export failed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
 
     private fun loadMeetings() {
         lifecycleScope.launch {

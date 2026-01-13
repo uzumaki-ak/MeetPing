@@ -53,9 +53,19 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="❓ Ask"
-                android:textSize="12sp"
-                android:layout_marginEnd="8dp"
+                android:text="💬 Chat"
+                android:textSize="11sp"
+                android:layout_marginEnd="4dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+            <Button
+                android:id="@+id/btnExport"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="📥 Export"
+                android:textSize="11sp"
+                android:layout_marginEnd="4dp"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
 
             <Button
@@ -63,8 +73,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="🗑️ Delete"
-                android:textSize="12sp"
+                android:text="🗑️"
+                android:textSize="11sp"
                 android:backgroundTint="@android:color/holo_red_light"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
 

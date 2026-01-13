@@ -12,14 +12,12 @@ import com.yourname.meetinglistener.R
 import com.yourname.meetinglistener.storage.entities.MeetingSummaryEntity
 
 /**
- * MeetingHistoryAdapter.kt
- *
- * PURPOSE:
- * Adapter for meeting history list
+ * MeetingHistoryAdapter.kt (WITH EXPORT)
  */
 class MeetingHistoryAdapter(
     private val onItemClick: (MeetingSummaryEntity) -> Unit,
     private val onQueryClick: (MeetingSummaryEntity) -> Unit,
+    private val onExportClick: (MeetingSummaryEntity) -> Unit,
     private val onDeleteClick: (MeetingSummaryEntity) -> Unit
 ) : ListAdapter<MeetingSummaryEntity, MeetingHistoryAdapter.ViewHolder>(DiffCallback()) {
 
@@ -28,6 +26,7 @@ class MeetingHistoryAdapter(
         val tvDuration: TextView = view.findViewById(R.id.tvMeetingDuration)
         val tvSummary: TextView = view.findViewById(R.id.tvMeetingSummary)
         val btnQuery: Button = view.findViewById(R.id.btnQuery)
+        val btnExport: Button = view.findViewById(R.id.btnExport)
         val btnDelete: Button = view.findViewById(R.id.btnDelete)
     }
 
@@ -47,6 +46,7 @@ class MeetingHistoryAdapter(
 
         holder.itemView.setOnClickListener { onItemClick(meeting) }
         holder.btnQuery.setOnClickListener { onQueryClick(meeting) }
+        holder.btnExport.setOnClickListener { onExportClick(meeting) }
         holder.btnDelete.setOnClickListener { onDeleteClick(meeting) }
     }
 

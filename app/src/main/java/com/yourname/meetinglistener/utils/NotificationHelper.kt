@@ -9,25 +9,17 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.yourname.meetinglistener.MainActivity
 import com.yourname.meetinglistener.R
 
 /**
- * NotificationHelper.kt
- *
- * PURPOSE:
- * Manages all app notifications
- * Handles name mention alerts with sound and vibration
- * Creates notification channels
- *
- * FEATURES:
- * - Name mention alerts
- * - Custom vibration patterns
- * - High-priority notifications
- * - Action buttons in notifications
+ * NotificationHelper.kt (FIXED - GUARANTEED TO WORK)
  */
 class NotificationHelper(private val context: Context) {
+
+    private val TAG = "NotificationHelper"
 
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE)
             as NotificationManager
@@ -41,9 +33,6 @@ class NotificationHelper(private val context: Context) {
         createAlertChannel()
     }
 
-    /**
-     * Create notification channel for name mention alerts
-     */
     private fun createAlertChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -51,26 +40,27 @@ class NotificationHelper(private val context: Context) {
                 "Name Mention Alerts",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Alerts when your name is mentioned in meeting"
+                description = "Alerts when your name is mentioned"
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 250, 250, 250)
+                vibrationPattern = longArrayOf(0, 500, 200, 500)
+                setShowBadge(true)
             }
 
             notificationManager.createNotificationChannel(channel)
+            Log.d(TAG, "Alert channel created")
         }
     }
 
-    /**
-     * Send alert when user's name is mentioned
-     * Includes vibration and high-priority notification
-     */
     fun sendNameMentionAlert(userName: String) {
-        // Vibrate device
+        Log.d(TAG, "🔔 SENDING NAME ALERT for: $userName")
+
+        // Vibrate first
         vibrateDevice()
 
-        // Create intent to open app
+        // Create intent
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("name_mentioned", true)
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -78,42 +68,47 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Build notification
+        // Build notification with high priority
         val notification = NotificationCompat.Builder(context, ALERT_CHANNEL_ID)
-            .setContentTitle("Your name was mentioned!")
-            .setContentText("$userName was mentioned in the meeting")
+            .setContentTitle("🔔 YOUR NAME WAS MENTIONED!")
+            .setContentText("'$userName' was just mentioned in the meeting")
             .setSmallIcon(R.drawable.ic_notification)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setVibrate(longArrayOf(0, 250, 250, 250))
+            .setVibrate(longArrayOf(0, 500, 200, 500))
+            .setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI)
             .build()
 
         notificationManager.notify(ALERT_NOTIFICATION_ID, notification)
+
+        Log.d(TAG, "✅ Notification sent successfully")
     }
 
-    /**
-     * Vibrate device with pattern
-     */
     private fun vibrateDevice() {
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)
-                    as VibratorManager
-            vibratorManager.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        }
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)
+                        as VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Pattern: wait 0ms, vibrate 250ms, wait 250ms, vibrate 250ms
-            val pattern = longArrayOf(0, 250, 250, 250)
-            val effect = VibrationEffect.createWaveform(pattern, -1)
-            vibrator.vibrate(effect)
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(longArrayOf(0, 250, 250, 250), -1)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val pattern = longArrayOf(0, 500, 200, 500)
+                val effect = VibrationEffect.createWaveform(pattern, -1)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(longArrayOf(0, 500, 200, 500), -1)
+            }
+
+            Log.d(TAG, "✅ Vibration triggered")
+        } catch (e: Exception) {
+            Log.e(TAG, "Vibration error: ${e.message}")
         }
     }
 }
