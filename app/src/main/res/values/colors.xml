@@ -16,7 +16,7 @@
     <color name="white">#FFFFFFFF</color>
 
     <color name="primary_green">#4CAF50</color>
-    <color name="primary_green_dark">#2E7D32</color>
+    <color name="primary_green_dark">#FF4A5A42   </color>
     <color name="accent_blue">#2196F3</color>
     <color name="error_red">#F44336</color>
 

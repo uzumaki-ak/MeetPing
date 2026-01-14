@@ -48,7 +48,7 @@
                         android:id="@+id/tvStatus"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="⚪ No Active Meeting"
+                        android:text="No Active Meeting"
                         android:textSize="18sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorPrimary" />
@@ -72,7 +72,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="⏱️ 0 min"
+                            android:text="⏱ 0 min"
                             android:textSize="14sp" />
 
                         <TextView
@@ -80,7 +80,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="📝 0 segments"
+                            android:text=" 0 segments"
                             android:textSize="14sp" />
                     </LinearLayout>
 
@@ -96,7 +96,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="✅ 0 decisions"
+                            android:text="0 decisions"
                             android:textSize="14sp" />
 
                         <TextView
@@ -104,7 +104,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="📋 0 actions"
+                            android:text=" 0 actions"
                             android:textSize="14sp" />
                     </LinearLayout>
 
@@ -120,7 +120,7 @@
                 android:text="Start Meeting"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:backgroundTint="@android:color/holo_green_dark"
+                android:backgroundTint="@android:color/holo_red_light"
                 android:layout_marginBottom="12dp" />
 
             <Button
@@ -155,7 +155,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="📢 Live Transcripts"
+                            android:text=" Live Transcripts"
                             android:textSize="16sp"
                             android:textStyle="bold"
                             android:textColor="?attr/colorPrimary" />
@@ -197,7 +197,7 @@
                         android:id="@+id/tvAnswerLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="💬 Last Answer:"
+                        android:text=" Last Answer:"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorPrimary" />
