@@ -1,7 +1,7 @@
 # MeetPing ![Build Status](https://img.shields.io/github/actions/workflow/status/uzumaki-ak/MeetPing/build.yml?branch=main) ![License](https://img.shields.io/github/license/uzumaki-ak/MeetPing) ![Android](https://img.shields.io/badge/platform-Android-blue)
 
 ---
-
+##  demo: https://youtu.be/BGLMY-3C9lM?si=9wLG_Nzi0Qp-wsqH
 ## 📖 Introduction
 
 **MeetPing** is a sophisticated Android application designed to facilitate seamless, intelligent meeting management and note-taking. Leveraging advanced speech recognition, hierarchical summarization, and integrated large language models (LLMs), MeetPing captures live meeting transcripts, condenses discussions into meaningful summaries, tracks key decisions, and manages action items—all in real time. Its robust architecture ensures efficient context handling, even during lengthy meetings, by hierarchically compressing transcripts to avoid token overflow issues typical with LLMs.
